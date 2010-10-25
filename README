@@ -1,0 +1,17 @@
+kanjiquiz
+---------
+
+Code copyright (c) 2010, Tom Coxon.
+    Licensed under GPL v2.
+
+Database (kyouiku/*.csv) created using the Wikipedia page on Kyouiku Kanji:
+    http://en.wikipedia.org/wiki/Ky%C5%8Diku_kanji
+    Licensed under the Creative Commons Attribution-ShareAlike License
+
+You might also be interested in WWWJDIC (http://wwwjdic.org/). Future versions
+of this software may interface with WWWJDIC to offer additional features.
+
+Requires a UTF-8 capable terminal.
+
+TODO:
+    Just about everything.
