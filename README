@@ -1,7 +1,8 @@
 kanjiquiz
 ---------
 
-Code copyright (c) 2010, Tom Coxon.
+KanjiQuiz copyright (c) 2010, Tom Coxon.
+    Contains Lingua::JA::Romaji by Jacob C Kesinger.
     Licensed under GPL v2.
 
 Database (kyouiku/*.csv) created using the Wikipedia page on Kyouiku Kanji:
