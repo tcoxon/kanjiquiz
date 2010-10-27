@@ -12,16 +12,14 @@ binmode STDOUT, ':utf8';
 sub eucjp2utf8 { decode('euc-jp', shift) }
 sub utf82eucjp { encode('euc-jp', shift) }
 
-sub romaji2katakana {
-    my $r = shift;
-    $r =~ s/-/ /g;
-    eucjp2utf8(romajitokana(utf82eucjp($r), 'kata'))
+sub romaji2kana {
+    my ($r,$kana) = @_;
+    my @parts = split/-/, $r;
+    $_ = eucjp2utf8(romajitokana(utf82eucjp($_), $kana)) for @parts;
+    join '', @parts;
 }
-sub romaji2hiragana {
-    my $r = shift;
-    $r =~ s/-/ /g;
-    eucjp2utf8(romajitokana(utf82eucjp($r), 'hira'))
-}
+sub romaji2katakana { romaji2kana(shift, 'kata') }
+sub romaji2hiragana { romaji2kana(shift, 'hira') }
 
 sub load_db {
     my $grade = shift;
