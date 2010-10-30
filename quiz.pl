@@ -136,7 +136,7 @@ sub test_info {
         my $ans = get_input($prompt);
         my $ans_pos;
         if ($ans_pos = check_ans($ans, \@data, $normalizers{$key})) {
-            print "Correct answer! ", @data[$ans_pos-1], "\n";
+            print "Correct answer! ", $data[$ans_pos-1], "\n";
             splice(@data, $ans_pos-1, 1);
             $n ++;
         } elsif ($ans eq '?') {
