@@ -20,3 +20,12 @@ Requires a UTF-8 capable terminal.
 
 Enter 'help' at the main prompt in Kanjiquiz (or run 'perldoc quiz.pl') for
 instructions on how to use it.
+
+TODO
+----
+
+Make command to display all kanji, one-per-line.
+
+Make commands to enable/disable shuffling of kanji for quiz/training.
+
+Allow specifying a range / set of kanji (numbered?) for quiz/training.
