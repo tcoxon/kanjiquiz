@@ -46,8 +46,11 @@ sub noop { shift }
 sub romaji2kana {
     my ($r,$kana) = @_;
     return "" if !defined $r;
-    my @parts = split/-/, $r;
-    $_ = eucjp2utf8(romajitokana(utf82eucjp($_), $kana)) for @parts;
+    # All this craziness is to ensure kana in input is left alone
+    my @parts = grep {!/^[-']$/} split /(\W+)/, $r;
+    for (@parts) {
+        $_ = eucjp2utf8(romajitokana(utf82eucjp($_), $kana)) if /^\w+$/
+    }
     join '', @parts;
 }
 sub romaji2katakana { romaji2kana(shift, 'kata') }
@@ -101,9 +104,7 @@ sub show_info {
 
 sub check_ans {
     my ($ans, $valid_ans, $normalizer) = @_;
-    print "ans: $ans, length: ", length $ans, ", bytelen: ", bytelength($ans), "\n";
     $ans = $normalizer->($ans) if bytelength($ans) eq length $ans;
-    print "normalized: $ans\n";
     my $i = 1;
     for (@$valid_ans) {
         if ($_ eq $ans) {
@@ -116,7 +117,7 @@ sub check_ans {
 
 sub get_input {
     my $prompt = shift;
-    my $input = $term->readline($prompt);
+    my $input = decode('utf8', $term->readline($prompt));
 
     print "\n" if !defined $input;
     die ":quit" if !defined $input || $input eq ":q" || $input eq ":quit";
@@ -132,14 +133,15 @@ sub test_info {
     my $n = 1;
 
     while (@data) {
-        my $prompt = "$label ($n/$orig_count):".(" " x (20 - length $label));
+        my $prompt = "$label ($n/$orig_count)";
+        $prompt .= ':' . (' ' x (20 - length $prompt));
         my $ans = get_input($prompt);
         my $ans_pos;
         if ($ans_pos = check_ans($ans, \@data, $normalizers{$key})) {
             print "Correct answer! ", $data[$ans_pos-1], "\n";
             splice(@data, $ans_pos-1, 1);
             $n ++;
-        } elsif ($ans eq '?') {
+        } elsif ($ans eq '?' || $ans eq '？') {
             print "Skipping question. Other answers were:\n";
             print "          $_\n" for @data;
             last;
