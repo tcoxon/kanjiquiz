@@ -1,7 +1,7 @@
-kanjiquiz
+Kanjiquiz
 ---------
 
-KanjiQuiz copyright (c) 2010, Tom Coxon.
+Kanjiquiz copyright (c) 2010, Tom Coxon.
     Contains Lingua::JA::Romaji by Jacob C Kesinger.
     Licensed under GPL v2.
 
@@ -9,10 +9,14 @@ Database (kyouiku/*.csv) created using the Wikipedia page on Kyouiku Kanji:
     http://en.wikipedia.org/wiki/Ky%C5%8Diku_kanji
     Licensed under the Creative Commons Attribution-ShareAlike License
 
+Requires Term::ReadLine. You can get this with CPAN if it's not already
+installed on your computer. Or on Ubuntu, you can install it with:
+    apt-get install libterm-readline-gnu-perl
+
 You might also be interested in WWWJDIC (http://wwwjdic.org/). Future versions
 of this software may interface with WWWJDIC to offer additional features.
 
 Requires a UTF-8 capable terminal.
 
-TODO:
-    Just about everything.
+Enter 'help' at the main prompt in Kanjiquiz (or run 'perldoc quiz.pl') for
+instructions on how to use it.
