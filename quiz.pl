@@ -10,6 +10,7 @@ use Term::ReadLine;
 use utf8;
 binmode STDOUT, ':utf8';
 
+# static definitions that shouldn't change
 my $term = Term::ReadLine->new('kanjiquiz');
 
 my @fields = (
@@ -19,19 +20,109 @@ my @fields = (
     ["Kun'yomi", 'kun_yomi'],
 );
 
-my %testing = (
-    kanji => 0,
-    meaning => 0,
-    on_yomi => 0,
-    kun_yomi => 0,
-);
-
 my %normalizers = (
     kanji => \&noop,
     meaning => \&noop,
     on_yomi => \&romaji2katakana,
     kun_yomi => \&romaji2hiragana,
 );
+
+my %commands = (
+    help => [\&cmd_help, 'List commands and their descriptions'],
+    quit => [\&cmd_quit, 'Leave Kanjiquiz'],
+    load => [\&cmd_load, '1 Argument - Load a Kanji database'],
+    grade => [\&cmd_grade, '1 Argument - Load a Kanji database of a particular Kyouiku '.
+        'grade'],
+    train => [\&cmd_train, 'Present Kanji one at a time with their definitions'.
+        ' and readings and quiz you on them immediately after seeing them'],
+    quiz => [\&cmd_quiz, 'Quiz you on Kanji meanings and readings'],
+);
+
+# definitions of things commands are allowed to change
+my %testing = (
+    kanji => 0,
+    meaning => 1,
+    on_yomi => 1,
+    kun_yomi => 1,
+);
+
+my $db;
+
+my $term_height;
+
+# Commands:
+
+sub show_universal_commands {
+    print "Enter ':quit' (or send EOF) at any prompt to exit.",
+        " During training or a quiz, you may also enter ':cancel' to get back",
+        " to the main prompt.\n";
+}
+
+sub cmd_help {
+    for (keys %commands) {
+        print "$_ - $commands{$_}->[1]\n";
+    }
+    print "\n";
+    show_universal_commands();
+}
+
+sub cmd_quit {
+    die ":quit";
+}
+
+sub cmd_load {
+    $db = load_db(shift);
+}
+
+sub cmd_grade {
+    $db = load_grade(shift);
+}
+
+sub test_kanji {
+    my $k = shift;
+
+    for my $field (@fields) {
+        show_info($field->[0], $k, $field->[1]) if !$testing{$field->[1]};
+    }
+    for my $field (@fields) {
+        test_info($field->[0], $k, $field->[1]) if $testing{$field->[1]};
+    }
+    print "\n";
+}
+
+sub cmd_train {
+    die "You must first load a Kanji database with the 'grade' or 'load'".
+        " commands" if !defined $db;
+    eval {
+        for my $k (@$db) {
+            show_info($_->[0], $k, $_->[1]) for @fields;
+
+            print "\nHit enter when you're ready to be tested on this Kanji, or".
+                " enter ':cancel' to cancel training.\n";
+            get_input("...");
+            print "\n" x $term_height;
+
+            test_kanji($k);
+
+            print "\nHit enter to continue with the next Kanji, or enter ':cancel'".
+                " to cancel training.\n";
+            get_input("...");
+            print "\n" x $term_height;
+        }
+    };
+    die if $@ !~ /^:cancel/;
+}
+
+sub cmd_quiz {
+    die "You must first load a Kanji database with the 'grade' or 'load'".
+        " commands" if !defined $db;
+    eval {
+        test_kanji($_) for @$db;
+    };
+    die if $@ !~ /^:cancel/;
+}
+
+# Rest of the program: 
 
 sub bytelength {
     use bytes;
@@ -61,12 +152,17 @@ sub kana2romaji {
     eucjp2utf8(kanatoromaji(utf82eucjp($k)))
 }
 
-sub load_db {
+sub load_grade {
     my $grade = shift;
+    die "Not a grade number: '$grade'" if $grade !~ /^\d+$/;
+    return load_db("kyouiku/$grade.csv");
+}
+
+sub load_db {
+    my $fn = shift;
     my @db;
     
-    die "Not a grade number: $grade" if $grade !~ /^\d+$/;
-    open my $fp, '<', "kyouiku/$grade.csv";
+    open my $fp, '<', $fn or die "Couldn't load db '$fn': $!";
     binmode $fp, ':utf8';
     while (<$fp>) {
         chomp;
@@ -77,7 +173,7 @@ sub load_db {
         s/ē/ei/g;
         my @parts = split /,/, $_;
         my $kanji = shift @parts;
-        @parts = map { my @a = split /\|/, $_; \@a } @parts;
+        @parts = map { [split(/\|/, $_)] } @parts;
         my ($meaning, $on_yomi, $kun_yomi) = @parts;
 
         push @db, {
@@ -119,8 +215,11 @@ sub get_input {
     my $prompt = shift;
     my $input = decode('utf8', $term->readline($prompt));
 
-    print "\n" if !defined $input;
-    die ":quit" if !defined $input || $input eq ":q" || $input eq ":quit";
+    if (!defined $input) {
+        print "\n";
+        die ":quit";
+    }
+    die $input if $input =~ /^:/;
 
     return $input;
 }
@@ -152,20 +251,55 @@ sub test_info {
     }
 }
 
+sub setup {
+    # Calulcate terminal height for hiding answers during `train`
+    if (!defined $term_height) {
+        if (defined $ENV{TERM_HEIGHT}) {
+            # try getting the value from an environment variable
+            $term_height = $ENV{TERM_HEIGHT};
+        } else {
+            # try getting the value from `stty` if possible
+            my $stty = `stty -a`;
+            if (defined $stty && $? == 0) {
+                ($term_height,) = $stty =~ /rows\s+(\d+);/;
+            } else {
+                $term_height = 24;
+                warn 'No $TERM_HEIGHT environment variable, and couldn\'t '.
+                    'determine terminal height with `stty`, so falling back to'.
+                    ' 24';
+            }
+        }
+    }
+}
+
 sub main {
-    print "Kanjiquiz\nEnter ':quit' (or send EOF) at any prompt to exit.\n\n";
+    setup();
+
+    print "Kanjiquiz\n";
+    show_universal_commands();
+    print "\nThis Kanji tutor is interactive. Enter 'help' for a list of ",
+        "valid commands.\n\n";
 
     eval {
-        my $db = load_db(1);
+        while (1) {
+            my $input = get_input('> ');
+            $input =~ s/(^\s+|\s+$)//g; # trim whitespace from ends
+            my ($command, $args) = $input =~ /^(\S+)(?:\s+(.*))?$/;
+            $args = "" if !defined $args;
 
-        for my $k (@$db) {
-            for my $field (@fields) {
-                show_info($field->[0], $k, $field->[1]) if !$testing{$field->[1]};
+            if (defined $commands{$command}) {
+                eval {
+                    $commands{$command}->[0]->($args);
+                };
+                if ($@ !~ /^:quit/) {
+                    print STDERR $@, "\n";
+                } elsif ($@) {
+                    die
+                }
+            } else {
+                print "Unrecognized command '$command'. Enter 'help' for a ",
+                    "list of valid commands.\n";
             }
-            for my $field (@fields) {
-                test_info($field->[0], $k, $field->[1]) if $testing{$field->[1]};
-            }
-            print "\n";
         }
     };
     print "\n";
