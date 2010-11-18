@@ -50,9 +50,14 @@ my %testing = (
     kun_yomi => 1,
 );
 
-my $db; 
+my ($db, $db_name);
 my $term_height;
 my $shuffle = 0;
+# quiz stats:
+my ($right,$wrong) = (0,0);
+my $user_data;
+my ($quiz_start_at,$quiz_type);
+my $wrong_answers;
 
 # Commands:
 
@@ -111,6 +116,7 @@ sub cmd_show {
 
 sub cmd_train {
     my $range = shift;
+    quiz_start('train');
     eval {
         for my $k (train_set($range)) {
             show_info($_->[0], $k, $_->[1]) for @fields;
@@ -129,17 +135,48 @@ sub cmd_train {
         }
     };
     die if $@ && $@ !~ /^:cancel/;
+    quiz_finish();
 }
 
 sub cmd_quiz {
     my $range = shift;
+    quiz_start('quiz');
     eval {
         test_kanji($_) for train_set($range);
     };
     die if $@ && $@ !~ /^:cancel/;
+    quiz_finish();
 }
 
 # Rest of the program: 
+
+sub quiz_start {
+    # called at the start of a quiz or train session
+    ($right,$wrong) = (0,0);
+    $quiz_start_at = time;
+    $quiz_type = shift;
+    $wrong_answers = '';
+}
+
+sub quiz_finish {
+    # called at the end of a quiz or train session
+    print "You got $right right and $wrong wrong answers. ";
+    print "Congratulations! " if $wrong == 0;
+    my $total = $right+$wrong;
+    my $percentage;
+    if ($total != 0) {
+        $percentage = ($right + .0)/$total*100.0;
+    } else {
+        $percentage = 100.0;
+    }
+    print "$right/$total = $percentage%\n";
+
+    open USER_FILE, '>>', $user_data or
+        die "Couldn't open $user_data to save progress";
+    binmode USER_FILE, ':utf8';
+    print USER_FILE "$quiz_start_at,$db_name,$quiz_type,$right,$wrong,$wrong_answers\n";
+    close USER_FILE;
+}
 
 sub train_set {
     # Umm... It's not one of those toy things.
@@ -237,7 +274,7 @@ sub kana2romaji {
 sub load_grade {
     my $grade = shift;
     die "Not a grade number: '$grade'" if $grade !~ /^\d+$/;
-    return load_db("kyouiku/$grade.csv");
+    load_db("kyouiku/$grade.csv");
 }
 
 sub load_db {
@@ -266,6 +303,9 @@ sub load_db {
         };
     }
     close $fp;
+
+    $db_name = $fn;
+
     \@db
 }
 
@@ -322,13 +362,19 @@ sub test_info {
             print "Correct answer! ", $data[$ans_pos-1], "\n";
             splice(@data, $ans_pos-1, 1);
             $n ++;
-        } elsif ($ans eq '?' || $ans eq '？') {
-            print "Skipping question. Other answers were:\n";
-            print "          $_\n" for @data;
-            last;
+            $right ++;
         } else {
-            print "Sorry, that was not a correct answer. Try again or enter ",
-                "'?' to skip the question.\n";
+            $wrong ++;
+            $wrong_answers .= $row->{kanji}.".$key,";
+
+            if ($ans eq '?' || $ans eq '？') {
+                print "Skipping question. Other answers were:\n";
+                print "          $_\n" for @data;
+                last;
+            } else {
+                print "Sorry, that was not a correct answer. Try again or enter ",
+                    "'?' to skip the question.\n";
+            }
         }
     }
 }
@@ -350,6 +396,14 @@ sub setup {
                     'determine terminal height with `stty`, so falling back to'.
                     ' 24';
             }
+        }
+    }
+
+    # Determine where to save user data
+    $user_data = "$ENV{HOME}/.kanjiquiz_progress";
+    for (@ARGV) {
+        if (/^--dev$/) {
+            $user_data .= '.dev';
         }
     }
 }
