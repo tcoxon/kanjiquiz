@@ -37,6 +37,7 @@ my %commands = (
     quiz => \&cmd_quiz,
     'shuffle-on' => \&cmd_shuffle_on,
     'shuffle-off' => \&cmd_shuffle_off,
+    list => \&cmd_list,
 );
 
 # definitions of things commands are allowed to change
@@ -89,6 +90,16 @@ sub test_kanji {
         test_info($field->[0], $k, $field->[1]) if $testing{$field->[1]};
     }
     print "\n";
+}
+
+sub cmd_list {
+    my $i = 0;
+    for my $row (@$db) {
+        printf "% 3d. %s ", $i+1, $row->{kanji};
+        
+        ++ $i;
+        print "\n" if ($i % 10 == 0);
+    }
 }
 
 sub train_set {
@@ -362,6 +373,11 @@ Replaces the current database with the kanji in the specified file.
 =item grade I<grade>
 
 Replaces the current database with the list of kanji learned in kyouiku grade I<grade>. This is the same as entering "load kyouiku/I<grade>.csv".
+
+=item list
+
+List every kanji in the current database, along with its index, which can be
+used in arguments to other commands.
 
 =item train
 
