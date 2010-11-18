@@ -40,6 +40,7 @@ my %commands = (
     'shuffle-off' => \&cmd_shuffle_off,
     list => \&cmd_list,
     show => \&cmd_show,
+    'problem-areas' => \&cmd_problem_areas,
 );
 
 # definitions of things commands are allowed to change
@@ -62,6 +63,42 @@ my $wrong_answers;
 # Commands:
 
 sub cmd_noop {}
+
+sub cmd_problem_areas {
+    check_db_open();
+    print "In the current database, you've had the most trouble with the ",
+        "following kanji:\n\n";
+
+    if (!-e $user_data) {
+        print "No records.\n";
+    } else {
+        open USER_FILE, '<', $user_data or
+            die "Unable to open $user_data";
+        binmode USER_FILE, ':utf8';
+        my %kanjis;
+        for (grep /,$db_name,/, <USER_FILE>) {
+            my ($time, $db, $type, $right, $wrong, @wrong_answers) = split/,/;
+            my @k = map /^(.+)\..+$/, @wrong_answers;
+            for my $k (@k) {
+                if (defined $kanjis{$k}) {
+                    $kanjis{$k} ++;
+                } else {
+                    $kanjis{$k} = 1;
+                }
+            }
+        }
+        close USER_FILE;
+        my @problems = keys %kanjis;
+        @problems = sort { $kanjis{$b} <=> $kanjis{$a} } @problems;
+        if (@problems) {
+            for (splice @problems, 0, 10) {
+                print "$_ :     $kanjis{$_} wrong answers\n";
+            }
+        } else {
+            print "None\n";
+        }
+    }
+}
 
 sub cmd_shuffle_on {
     $shuffle = 1;
@@ -538,6 +575,11 @@ Enables shuffling (randomized order) in quiz and training mode.
 =item shuffle-off
 
 Disables shuffling (randomized order) in quiz and training mode. Default.
+
+=item problem-areas
+
+Uses the statistics gathered from running quizes and training to show you the
+top 10 kanji for which you've given wrong answers.
 
 =back
 
