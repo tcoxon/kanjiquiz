@@ -26,8 +26,6 @@ TODO
 
 Make command to display all kanji, one-per-line.
 
-Make commands to enable/disable shuffling of kanji for quiz/training.
-
 Allow specifying a range / set of kanji (numbered?) for quiz/training.
 
 Collect statistics to produce pretty graphs of user's progress.

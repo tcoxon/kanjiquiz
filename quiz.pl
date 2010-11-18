@@ -6,6 +6,7 @@ use warnings;
 use Encode qw/encode decode/;
 use Lingua::JA::Romaji qw/kanatoromaji romajitokana/;
 use Term::ReadLine;
+use List::Util 'shuffle';
 
 use utf8;
 binmode STDOUT, ':utf8';
@@ -34,6 +35,8 @@ my %commands = (
     grade => \&cmd_grade,
     train => \&cmd_train,
     quiz => \&cmd_quiz,
+    'shuffle-on' => \&cmd_shuffle_on,
+    'shuffle-off' => \&cmd_shuffle_off,
 );
 
 # definitions of things commands are allowed to change
@@ -44,11 +47,19 @@ my %testing = (
     kun_yomi => 1,
 );
 
-my $db;
-
+my $db; 
 my $term_height;
+my $shuffle = 0;
 
 # Commands:
+
+sub cmd_shuffle_on {
+    $shuffle = 1;
+}
+
+sub cmd_shuffle_off {
+    $shuffle = 0;
+}
 
 sub cmd_help {
     my $cmd = 'perldoc "'.__FILE__.'"';
@@ -80,11 +91,21 @@ sub test_kanji {
     print "\n";
 }
 
-sub cmd_train {
+sub train_set {
+    # Umm... It's not one of those toy things.
+    # It means "TRAINING set!"
+
     die "You must first load a Kanji database with the 'grade' or 'load'".
         " commands" if !defined $db;
+
+    my @set = @$db;
+    @set = shuffle(@set) if ($shuffle);
+    @set;
+}
+
+sub cmd_train {
     eval {
-        for my $k (@$db) {
+        for my $k (train_set()) {
             show_info($_->[0], $k, $_->[1]) for @fields;
 
             print "\nHit enter when you're ready to be tested on this Kanji, or".
@@ -104,10 +125,8 @@ sub cmd_train {
 }
 
 sub cmd_quiz {
-    die "You must first load a Kanji database with the 'grade' or 'load'".
-        " commands" if !defined $db;
     eval {
-        test_kanji($_) for @$db;
+        test_kanji($_) for train_set();
     };
     die if $@ !~ /^:cancel/;
 }
@@ -367,6 +386,14 @@ Input for meanings must be in English.
 Input for readings may be in romaji or kana, but if you enter answers in kana,
 it must be in the correct kana (i.e. Katakana for On'yomi, and Hiragana for
 Kun'yomi).
+
+=item shuffle-on
+
+Enables shuffling (randomized order) in quiz and training mode.
+
+=item shuffle-off
+
+Disables shuffling (randomized order) in quiz and training mode. Default.
 
 =back
 
