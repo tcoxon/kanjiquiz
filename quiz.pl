@@ -38,6 +38,7 @@ my %commands = (
     'shuffle-on' => \&cmd_shuffle_on,
     'shuffle-off' => \&cmd_shuffle_off,
     list => \&cmd_list,
+    show => \&cmd_show,
 );
 
 # definitions of things commands are allowed to change
@@ -92,7 +93,14 @@ sub test_kanji {
     print "\n";
 }
 
+sub check_db_open {
+    die "You must first load a Kanji database with the 'grade' or 'load'".
+        " commands" if !defined $db;
+}
+
 sub cmd_list {
+    check_db_open();
+
     my $i = 0;
     for my $row (@$db) {
         printf "% 3d. %s ", $i+1, $row->{kanji};
@@ -102,21 +110,71 @@ sub cmd_list {
     }
 }
 
+sub range {
+    my $first = shift;
+    my $last = pop;
+    return () if !defined $first;
+    return $first if !defined $last;
+    die "Ranges must be of whole numbers"
+        if $first !~ /^\d+$/ || $last !~ /^\d+$/;
+
+    my @res;
+    if ($first < $last) {
+        for (my $i = $first; $i <= $last; $i++) {
+            push @res, $i;
+        }
+    } else {
+        for (my $i = $first; $i >= $last; $i--) {
+            push @res, $i;
+        }
+    }
+    @res;
+}
+
+sub parse_range {
+    my @ranges = split /,/, shift;
+    map { range(split /-/, $_) } @ranges
+}
+
+sub select_elems ($@) {
+    # Returns the elements of @arr indexed by the specified range
+    my ($range, @arr) = @_;
+    my @res;
+    for my $n (parse_range($range)) {
+        push @res, $arr[$n-1];
+    }
+    @res
+}
+
+sub cmd_show {
+    check_db_open();
+
+    my $range = shift;
+    die "A range (e.g. '1,2-5,7') must be specified for show"
+        if !defined $range;
+
+    for my $row (select_elems($range, @$db)) {
+        show_info($_->[0], $row, $_->[1]) for @fields;
+        print "\n";
+    }
+}
+
 sub train_set {
     # Umm... It's not one of those toy things.
     # It means "TRAINING set!"
+    my $range = shift;
 
-    die "You must first load a Kanji database with the 'grade' or 'load'".
-        " commands" if !defined $db;
+    check_db_open();
 
-    my @set = @$db;
+    my @set = select_elems($range, @$db);
     @set = shuffle(@set) if ($shuffle);
     @set;
 }
 
 sub cmd_train {
+    my $range = shift;
     eval {
-        for my $k (train_set()) {
+        for my $k (train_set($range)) {
             show_info($_->[0], $k, $_->[1]) for @fields;
 
             print "\nHit enter when you're ready to be tested on this Kanji, or".
@@ -132,14 +190,15 @@ sub cmd_train {
             print "\n" x $term_height;
         }
     };
-    die if $@ !~ /^:cancel/;
+    die if $@ && $@ !~ /^:cancel/;
 }
 
 sub cmd_quiz {
+    my $range = shift;
     eval {
-        test_kanji($_) for train_set();
+        test_kanji($_) for train_set($range);
     };
-    die if $@ !~ /^:cancel/;
+    die if $@ && $@ !~ /^:cancel/;
 }
 
 # Rest of the program: 
@@ -379,11 +438,19 @@ Replaces the current database with the list of kanji learned in kyouiku grade I<
 List every kanji in the current database, along with its index, which can be
 used in arguments to other commands.
 
-=item train
+=item show I<range>
+
+Show information on the kanji in the specified range of indices. Indices can be
+found by using the C<list> command.
+
+=item train [I<range>]
 
 Training mode. This will go through the list of kanji one by one. For each
 kanji, it will display the data for you to memorize. Once you have memorized the
 data, it will clear the screen and ask you to repeat it back.
+
+If I<range> is specified, it will only train you on the kanji with indices in
+the specified range. Indices can be found by using the C<list> command.
 
 Input for meanings must be in English.
 
@@ -391,11 +458,14 @@ Input for readings may be in romaji or kana, but if you enter answers in kana,
 it must be in the correct kana (i.e. Katakana for On'yomi, and Hiragana for 
 Kun'yomi).
 
-=item quiz
+=item quiz [I<range>]
 
 Quiz mode. This will go through the list of kanji one by one and ask you to
 remember meanings and readings for each one, without first showing you what
 they are.
+
+If I<range> is specified, it will only quiz you on the kanji with indices in
+the specified range. Indices can be found by using the C<list> command.
 
 Input for meanings must be in English.
 
