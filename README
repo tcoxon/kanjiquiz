@@ -13,10 +13,13 @@ Requires Term::ReadLine. You can get this with CPAN if it's not already
 installed on your computer. Or on Ubuntu, you can install it with:
     apt-get install libterm-readline-gnu-perl
 
+This quiz has only been tested (and is only expected to work) on GNU/Linux. I'm
+willing to accept patches to make it work on Windows.
+
 You might also be interested in WWWJDIC (http://wwwjdic.org/). Future versions
 of this software may interface with WWWJDIC to offer additional features.
 
-Requires a UTF-8 capable terminal.
+Requires a UTF-8-capable terminal.
 
 Enter 'help' at the main prompt in Kanjiquiz (or run 'perldoc quiz.pl') for
 instructions on how to use it.

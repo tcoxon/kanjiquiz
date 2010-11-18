@@ -29,6 +29,7 @@ my %normalizers = (
 );
 
 my %commands = (
+    '' => \&cmd_noop,
     help => \&cmd_help,
     quit => \&cmd_quit,
     load => \&cmd_load,
@@ -54,6 +55,8 @@ my $term_height;
 my $shuffle = 0;
 
 # Commands:
+
+sub cmd_noop {}
 
 sub cmd_shuffle_on {
     $shuffle = 1;
@@ -81,23 +84,6 @@ sub cmd_grade {
     $db = load_grade(shift);
 }
 
-sub test_kanji {
-    my $k = shift;
-
-    for my $field (@fields) {
-        show_info($field->[0], $k, $field->[1]) if !$testing{$field->[1]};
-    }
-    for my $field (@fields) {
-        test_info($field->[0], $k, $field->[1]) if $testing{$field->[1]};
-    }
-    print "\n";
-}
-
-sub check_db_open {
-    die "You must first load a Kanji database with the 'grade' or 'load'".
-        " commands" if !defined $db;
-}
-
 sub cmd_list {
     check_db_open();
 
@@ -108,6 +94,63 @@ sub cmd_list {
         ++ $i;
         print "\n" if ($i % 10 == 0);
     }
+}
+
+sub cmd_show {
+    check_db_open();
+
+    my $range = shift;
+    die "A range (e.g. '1,3-5,7') must be specified for show"
+        if !defined $range;
+
+    for my $row (select_elems($range, @$db)) {
+        show_info($_->[0], $row, $_->[1]) for @fields;
+        print "\n";
+    }
+}
+
+sub cmd_train {
+    my $range = shift;
+    eval {
+        for my $k (train_set($range)) {
+            show_info($_->[0], $k, $_->[1]) for @fields;
+
+            print "\nHit enter when you're ready to be tested on this Kanji, or".
+                " enter ':cancel' to cancel training.\n";
+            get_input("...");
+            print "\n" x $term_height;
+
+            test_kanji($k);
+
+            print "\nHit enter to continue with the next Kanji, or enter ':cancel'".
+                " to cancel training.\n";
+            get_input("...");
+            print "\n" x $term_height;
+        }
+    };
+    die if $@ && $@ !~ /^:cancel/;
+}
+
+sub cmd_quiz {
+    my $range = shift;
+    eval {
+        test_kanji($_) for train_set($range);
+    };
+    die if $@ && $@ !~ /^:cancel/;
+}
+
+# Rest of the program: 
+
+sub train_set {
+    # Umm... It's not one of those toy things.
+    # It means "TRAINING set!"
+    my $range = shift;
+
+    check_db_open();
+
+    my @set = select_elems($range, @$db);
+    @set = shuffle(@set) if ($shuffle);
+    @set;
 }
 
 sub range {
@@ -146,62 +189,22 @@ sub select_elems ($@) {
     @res
 }
 
-sub cmd_show {
-    check_db_open();
+sub test_kanji {
+    my $k = shift;
 
-    my $range = shift;
-    die "A range (e.g. '1,2-5,7') must be specified for show"
-        if !defined $range;
-
-    for my $row (select_elems($range, @$db)) {
-        show_info($_->[0], $row, $_->[1]) for @fields;
-        print "\n";
+    for my $field (@fields) {
+        show_info($field->[0], $k, $field->[1]) if !$testing{$field->[1]};
     }
+    for my $field (@fields) {
+        test_info($field->[0], $k, $field->[1]) if $testing{$field->[1]};
+    }
+    print "\n";
 }
 
-sub train_set {
-    # Umm... It's not one of those toy things.
-    # It means "TRAINING set!"
-    my $range = shift;
-
-    check_db_open();
-
-    my @set = select_elems($range, @$db);
-    @set = shuffle(@set) if ($shuffle);
-    @set;
+sub check_db_open {
+    die "You must first load a Kanji database with the 'grade' or 'load'".
+        " commands" if !defined $db;
 }
-
-sub cmd_train {
-    my $range = shift;
-    eval {
-        for my $k (train_set($range)) {
-            show_info($_->[0], $k, $_->[1]) for @fields;
-
-            print "\nHit enter when you're ready to be tested on this Kanji, or".
-                " enter ':cancel' to cancel training.\n";
-            get_input("...");
-            print "\n" x $term_height;
-
-            test_kanji($k);
-
-            print "\nHit enter to continue with the next Kanji, or enter ':cancel'".
-                " to cancel training.\n";
-            get_input("...");
-            print "\n" x $term_height;
-        }
-    };
-    die if $@ && $@ !~ /^:cancel/;
-}
-
-sub cmd_quiz {
-    my $range = shift;
-    eval {
-        test_kanji($_) for train_set($range);
-    };
-    die if $@ && $@ !~ /^:cancel/;
-}
-
-# Rest of the program: 
 
 sub bytelength {
     use bytes;
@@ -331,7 +334,7 @@ sub test_info {
 }
 
 sub setup {
-    # Calulcate terminal height for hiding answers during `train`
+    # Calculate terminal height for hiding answers during `train`
     if (!defined $term_height) {
         if (defined $ENV{TERM_HEIGHT}) {
             # try getting the value from an environment variable
@@ -366,6 +369,7 @@ sub main {
             my $input = get_input('> ');
             $input =~ s/(^\s+|\s+$)//g; # trim whitespace from ends
             my ($command, $args) = $input =~ /^(\S+)(?:\s+(.*))?$/;
+            $command = "" if !defined $command;
             $args = "" if !defined $args;
 
             if (defined $commands{$command}) {
@@ -480,6 +484,24 @@ Enables shuffling (randomized order) in quiz and training mode.
 =item shuffle-off
 
 Disables shuffling (randomized order) in quiz and training mode. Default.
+
+=back
+
+=head3 RANGES
+
+Some commands allow you to choose a set of kanji records by specifying a range. Example ranges:
+
+=over
+
+=item 5
+
+=item 6,8
+
+=item 3-8
+
+=item 1,3-5,7
+
+=item 8-1
 
 =back
 
