@@ -193,8 +193,9 @@ sub cmd_train {
             print "\n" x $term_height;
         }
     };
-    die if $@ && $@ !~ /^:cancel/;
+    my $err = $@;
     quiz_finish();
+    die if $err && $err !~ /^:cancel/;
 }
 
 sub cmd_quiz {
@@ -203,8 +204,9 @@ sub cmd_quiz {
     eval {
         test_kanji($_) for train_set($range);
     };
-    die if $@ && $@ !~ /^:cancel/;
+    my $err = $@;
     quiz_finish();
+    die if $err && $err !~ /^:cancel/;
 }
 
 # Rest of the program: 
@@ -280,6 +282,7 @@ sub parse_range {
 sub select_elems ($@) {
     # Returns the elements of @arr indexed by the specified range
     my ($range, @arr) = @_;
+    return @arr if !defined $range || $range eq "";
     my @res;
     for my $n (parse_range($range)) {
         push @res, $arr[$n-1];
