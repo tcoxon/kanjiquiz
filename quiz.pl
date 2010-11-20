@@ -52,6 +52,7 @@ my %testing = (
 );
 
 my ($db, $db_name);
+my %kanjiIndices;
 my $term_height;
 my $shuffle = 0;
 # quiz stats:
@@ -366,6 +367,13 @@ sub load_db {
 
     $db_name = $fn;
 
+    # populate %kanjiIndices for quickly finding indices of kanji
+    %kanjiIndices = ();
+    my $i = 0;
+    for (@db) {
+        $kanjiIndices{$_->{kanji}} = $i ++;
+    }
+
     \@db
 }
 
@@ -407,13 +415,7 @@ sub get_input {
 }
 
 sub find_kanji {
-    my $kanji = shift;
-    my $i = 0;
-    for my $row (@$db) {
-        return $i if $row->{kanji} eq $kanji;
-        $i ++;
-    }
-    return undef;
+    return $kanjiIndices{(shift)}
 }
 
 sub test_info {
