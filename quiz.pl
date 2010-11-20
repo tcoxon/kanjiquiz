@@ -58,11 +58,29 @@ my $shuffle = 0;
 my ($right,$wrong) = (0,0);
 my $user_data;
 my ($quiz_start_at,$quiz_type);
-my $wrong_answers;
+my ($wrong_answers, $right_answers) = ('','');
 
 # Commands:
 
 sub cmd_noop {}
+
+sub tally_answer {
+    my ($k,$rw,$tally) = @_;
+    $tally->{$k} = [0,0] if !defined $tally->{$k};
+    $tally->{$k}->[$rw] ++;
+}
+
+sub tally_answers {
+    my ($ks, $rw, $tally) = @_;
+    for my $k (@$ks) {
+        tally_answer($k, $rw, $tally) if defined $k and $k ne ""
+    }
+}
+
+sub pass_rate {
+    my ($wrong, $right) = @{$_[0]};
+    ($right + 0.0) / ($right + $wrong) * 100.0
+}
 
 sub cmd_problem_areas {
     check_db_open();
@@ -75,24 +93,27 @@ sub cmd_problem_areas {
         open USER_FILE, '<', $user_data or
             die "Unable to open $user_data";
         binmode USER_FILE, ':utf8';
-        my %kanjis;
+        my %indices;
         for (grep /,$db_name,/, <USER_FILE>) {
-            my ($time, $db, $type, $right, $wrong, @wrong_answers) = split/,/;
-            my @k = map /^(.+)\..+$/, @wrong_answers;
-            for my $k (@k) {
-                if (defined $kanjis{$k}) {
-                    $kanjis{$k} ++;
-                } else {
-                    $kanjis{$k} = 1;
-                }
-            }
+            chomp;
+            my ($time, $db, $type, $right, $wrong, $wrong_answers, $right_answers) = split/,/;
+            my @wrong_answers = split /;/, $wrong_answers;
+            my @right_answers = split /;/, $right_answers;
+            tally_answers(\@wrong_answers, 0, \%indices);
+            tally_answers(\@right_answers, 1, \%indices);
         }
         close USER_FILE;
-        my @problems = keys %kanjis;
-        @problems = sort { $kanjis{$b} <=> $kanjis{$a} } @problems;
+        my @problems = keys %indices;
+
+        # order the problem-area kanjis and remove 100% pass-rate kanjis
+        @problems = sort { pass_rate($indices{$a}) <=> pass_rate($indices{$b}) }
+            grep { $indices{$_}->[0] != 0 }
+                @problems;
+
         if (@problems) {
             for (splice @problems, 0, 10) {
-                print "$_ :     $kanjis{$_} wrong answers\n";
+                printf "%s (index % 3d) :    %.0f%% pass rate\n",
+                    $db->[$_]->{kanji}, int($_)+1, int pass_rate($indices{$_});
             }
         } else {
             print "None\n";
@@ -193,6 +214,7 @@ sub quiz_start {
     $quiz_start_at = time;
     $quiz_type = shift;
     $wrong_answers = '';
+    $right_answers = '';
 }
 
 sub quiz_finish {
@@ -211,7 +233,8 @@ sub quiz_finish {
     open USER_FILE, '>>', $user_data or
         die "Couldn't open $user_data to save progress";
     binmode USER_FILE, ':utf8';
-    print USER_FILE "$quiz_start_at,$db_name,$quiz_type,$right,$wrong,$wrong_answers\n";
+    print USER_FILE "$quiz_start_at,$db_name,$quiz_type,$right,$wrong,",
+        "$wrong_answers,$right_answers\n";
     close USER_FILE;
 }
 
@@ -383,6 +406,16 @@ sub get_input {
     return $input;
 }
 
+sub find_kanji {
+    my $kanji = shift;
+    my $i = 0;
+    for my $row (@$db) {
+        return $i if $row->{kanji} eq $kanji;
+        $i ++;
+    }
+    return undef;
+}
+
 sub test_info {
     my ($label, $row, $key) = @_;
     my $v = $row->{$key};
@@ -400,9 +433,10 @@ sub test_info {
             splice(@data, $ans_pos-1, 1);
             $n ++;
             $right ++;
+            $right_answers .= find_kanji($row->{kanji}).';';
         } else {
             $wrong ++;
-            $wrong_answers .= $row->{kanji}.".$key,";
+            $wrong_answers .= find_kanji($row->{kanji}).';';
 
             if ($ans eq '?' || $ans eq '？') {
                 print "Skipping question. Other answers were:\n";
