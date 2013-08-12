@@ -29,3 +29,6 @@ TODO
 
 Use collected stats to display graphs of progress.
 
+Clean up and document the customgrade.pl script. At the moment,
+lesson8.txt/csv is used as an example. Load it into the quiz with the load
+command.
